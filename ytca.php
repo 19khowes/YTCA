@@ -14,7 +14,7 @@
 // See the YouTube API reference for instructions on obtaining an API key
 // https://developers.google.com/youtube/v3/docs/
 // Store API key in a local file
-$apiKeyFile = 'apikey'; // name of local file in which API key is stored
+$apiKeyFile = 'apikey.php'; // name of local file in which API key is stored
 
 // Debug (can be overwritten with parameter 'debug' in URL)
 // Value is either 1, 2, or false (default)
@@ -108,15 +108,24 @@ if (isset($_GET['report'])) {
 }
 $filter = false;
 $sortBy = 'title'; // default, conditionally overridden
+// to hold user input filter dates
+$publishedAfter = '';
+$publishedBefore = '';
+
+// GET THE START AND END DATES TO BE FILTERED
 if (isset($_GET['date-start'])) {
   if (isValid('date',$_GET['date-start'])) {
     $filter['dateStart'] = $_GET['date-start'];
+    // from user formatted date, get format that youtube's API likes (kade's edits)
+    $publishedAfter = formatDateForYoutube($filter['dateStart']);
     $sortBy = 'date';
   }
 }
 if (isset($_GET['date-end'])) {
   if (isValid('date',$_GET['date-end'])) {
     $filter['dateEnd'] = $_GET['date-end'];
+    // from user formatted date, get format that youtube's API likes (kade's edits)
+    $publishedBefore = formatDateForYoutube($filter['dateEnd']);
     $sortBy = 'date';
   }
 }
@@ -273,7 +282,8 @@ if (is_array($channels)) {
         $channelCost += $channelIdArray['cost'];
         $channelRequests++;
       }
-      $channelQueryArray = buildYouTubeQuery('search',$channels[$k]['id'],NULL,$apiKey,$sortBy);
+      // ADDED publishedAfter and publishedBefore (kade's edits)
+      $channelQueryArray = buildYouTubeQuery('search',$channels[$k]['id'],NULL,$apiKey,$sortBy, NULL, $publishedAfter, $publishedBefore);
       $channelQuery = $channelQueryArray['url'];
       $channelCost += $channelQueryArray['cost'];
       $channelRequests++;
@@ -1345,7 +1355,8 @@ function getChannelMeta($channels) {
   }
 }
 
-function buildYouTubeQuery($which, $id=NULL, $userName=NULL, $apiKey, $sortBy=NULL, $nextPageToken=NULL) {
+// added parameters publishedBefore and publishedAfter to send with Youtube query 
+function buildYouTubeQuery($which, $id=NULL, $userName=NULL, $apiKey, $sortBy=NULL, $nextPageToken=NULL, $publishedAfter=NULL, $publishedBefore=NULL) {
 
   // $which is either 'search', 'channels', or 'videos'
   // $id is a channel ID for 'search' queries; or a video ID for 'videos' query
@@ -1360,6 +1371,15 @@ function buildYouTubeQuery($which, $id=NULL, $userName=NULL, $apiKey, $sortBy=NU
     $request = 'https://www.googleapis.com/youtube/v3/search?';
     $request .= 'key='.$apiKey;
     $request .= '&channelId='.$id;
+
+    // ADD PUBLISHED BEFORE/AFTER TO FILTER IN QUERY BY DATE 
+    if ($publishedAfter) {
+      $request .= '&publishedAfter='.$publishedAfter;
+    }
+    if ($publishedBefore) {
+      $request .= '&publishedBefore='.$publishedBefore;
+    }
+
     $request .= '&part=id,snippet';
     if ($sortBy) {
       $request .= '&order='.$sortBy;
@@ -1553,6 +1573,7 @@ function applyFilter($videos,$filter) {
     $v = $videos;
   }
   if ($filter['dateStart'] || $filter['dateEnd']) {
+    // COULD REMOVE AFTER FILTER FOR DATE SINCE FILTERED IN QUERY TO YOUTUBE HERE
     $v = filterByDate($v,$filter);
   }
   return $v;
@@ -1876,4 +1897,9 @@ function getLastKey($channels) {
   return $key;
 }
 
+function formatDateForYoutube($date) {
+  // YYY-MM-DD -> YYYY-MM-DDT00:00:00Z
+
+  return $date."T00:00:00Z";
+}
 ?>
